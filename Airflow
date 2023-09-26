@@ -1,0 +1,89 @@
+Pipeline framework
+The pipeline framework will consist of the following stages:
+
+Pre-deployment checks: This stage will check the status of the CloudSQL PostgreSQL instance and database to ensure that they are ready for the create tables job.
+Create tables: This stage will create the tables in the CloudSQL PostgreSQL database using the Airflow macros generated table definitions.
+Post-deployment checks: This stage will verify that the tables were created successfully.
+Airflow DAGs, tasks, and jobs
+The following Airflow DAGs, tasks, and jobs will be used to implement the pipeline framework:
+
+DAG: create_tables_dag
+
+Tasks:
+
+check_cloudsql_instance_status_task: This task will check the status of the CloudSQL PostgreSQL instance.
+check_cloudsql_database_status_task: This task will check the status of the CloudSQL PostgreSQL database.
+create_tables_task: This task will create the tables in the CloudSQL PostgreSQL database using the Airflow macros generated table definitions.
+verify_tables_created_task: This task will verify that the tables were created successfully.
+Job:
+
+create_tables_job: This job will run the create_tables_dag DAG.
+Using Airflow variables and macros
+The following Airflow variables and macros will be used to implement the pipeline:
+
+Variables:
+
+cloudsql_instance_name: The name of the CloudSQL PostgreSQL instance.
+cloudsql_database_name: The name of the CloudSQL PostgreSQL database.
+cloudsql_user_name: The username for the CloudSQL PostgreSQL database.
+cloudsql_password: The password for the CloudSQL PostgreSQL database.
+Macros:
+
+generate_table_definitions_macro: This macro will generate the table definitions dynamically.
+Using Airflow sensors
+The following Airflow sensors will be used to monitor the status of the CloudSQL PostgreSQL instance and database before running the create tables job:
+
+CloudSqlInstanceRunningSensor: This sensor will wait until the CloudSQL PostgreSQL instance is running.
+CloudSqlDatabaseExistsSensor: This sensor will wait until the CloudSQL PostgreSQL database exists.
+Using Airflow notifications
+The following Airflow notifications will be used to alert you if any of the jobs in the pipeline fail:
+
+EmailNotification: This notification will send an email alert when a job fails.
+SlackNotification: This notification will send a Slack message alert when a job fails.
+Example DAG
+The following example DAG shows how to use the pipeline framework to create tables in a CloudSQL PostgreSQL database:
+
+
+
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from airflow.sensors.sql_sensor import CloudSqlInstanceRunningSensor, CloudSqlDatabaseExistsSensor
+from airflow.providers.google.cloud.operators.sql import CloudSqlOperator
+
+default_args = {
+    'start_date': airflow.utils.dates.days_ago(1),
+}
+
+dag = DAG('create_tables_dag', default_args=default_args)
+
+# Pre-deployment checks
+check_cloudsql_instance_status_task = CloudSqlInstanceRunningSensor(
+    task_id='check_cloudsql_instance_status_task',
+    instance=cloudsql_instance_name,
+)
+
+check_cloudsql_database_status_task = CloudSqlDatabaseExistsSensor(
+    task_id='check_cloudsql_database_status_task',
+    instance=cloudsql_instance_name,
+    database=cloudsql_database_name,
+)
+
+# Create tables
+create_tables_task = CloudSqlOperator(
+    task_id='create_tables_task',
+    instance=cloudsql_instance_name,
+    database=cloudsql_database_name,
+    sql=generate_table_definitions_macro(),
+)
+
+# Post-deployment checks
+verify_tables_created_task = PythonOperator(
+    task_id='verify_tables_created_task',
+    python_callable=verify_tables_created,
+)
+
+# Job
+create_tables_job = create_tables_task
+
+# Task dependencies
+check_cloudsql_instance_status_task >> check_cloudsql_database_status_task >> create_tables
